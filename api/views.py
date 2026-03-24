@@ -1,3 +1,4 @@
+import logging
 from re import search
 from django.contrib.auth import authenticate
 from rest_framework import generics,viewsets,permissions,status,filters
@@ -15,7 +16,10 @@ from rest_framework.authtoken.models import Token
 from .permissions import IsAdminOrReadOnly,IsAuthenticated
 from django.shortcuts import get_object_or_404
 from django.db import transaction
+from django.core.mail import send_mail
 from rest_framework.generics import ListAPIView,RetrieveAPIView,RetrieveUpdateDestroyAPIView
+
+logger = logging.getLogger(__name__)
 #user
 class UserView(viewsets.ModelViewSet):
         queryset = User.objects.all()
@@ -333,6 +337,7 @@ class CheckoutView(APIView):
 class PayOrderView(APIView):
     permission_classes = [IsAuthenticated]
 
+    @transaction.atomic()
     def post(self, request, order_id):
         user = request.user
         order = get_object_or_404(Order, id=order_id, user=user)
@@ -340,19 +345,46 @@ class PayOrderView(APIView):
         if order.status != 'pending':
             return Response({"error": "Đơn hàng đã thanh toán hoặc không hợp lệ"}, status=400)
 
-        # Trừ tồn kho (nếu chưa trừ)
-        for item in order.items.all():
-            product = item.product
-            if item.quantity > product.quantity:
-                return Response({"error": f"Sản phẩm '{product.name}' đã hết hàng"}, status=400)
-            product.quantity -= item.quantity
-            product.save()
-
         order.status = 'paid'
         order.save()
         Cart.objects.filter(user=user).delete()
 
-        return Response({"message": "Thanh toán thành công", "order_id": order.id,"status":order.status})
+        recipient_email = order.email or user.email
+        email_warning = None
+
+        if recipient_email:
+            items_text = "\n".join(
+                [f"- {item.product.name} x{item.quantity}: {item.price} VND" for item in order.items.all()]
+            )
+            email_subject = f"Xac nhan thanh toan don hang #{order.id}"
+            email_body = (
+                f"Xin chao {order.receiver_name or user.username},\n\n"
+                f"Don hang #{order.id} da thanh toan thanh cong.\n"
+                f"Tong tien: {order.total_price} VND\n\n"
+                f"Danh sach san pham:\n{items_text}\n\n"
+                f"Dia chi giao hang: {order.address or 'N/A'}\n"
+                f"So dien thoai: {order.phone or 'N/A'}\n\n"
+                "Cam on ban da mua hang."
+            )
+            try:
+                send_mail(
+                    subject=email_subject,
+                    message=email_body,
+                    from_email=None,
+                    recipient_list=[recipient_email],
+                    fail_silently=False,
+                )
+            except Exception as exc:
+                logger.exception("Payment email sending failed for order_id=%s", order.id)
+                email_warning = f"Thanh toan thanh cong nhung gui email that bai: {str(exc)}"
+        else:
+            email_warning = "Thanh toan thanh cong nhung khong co email nguoi nhan."
+
+        response_data = {"message": "Thanh toán thành công", "order_id": order.id, "status": order.status}
+        if email_warning:
+            response_data["email_warning"] = email_warning
+
+        return Response(response_data)
 
 #oderlistview 
 
