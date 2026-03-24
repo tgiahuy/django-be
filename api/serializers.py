@@ -39,9 +39,21 @@ class CartSerializer(serializers.ModelSerializer):
 
 #product
 class ProductSerializer(serializers.ModelSerializer):
+    # Frontend hiện gửi cả đường dẫn tương đối (không phải URL tuyệt đối),
+    # nên dùng CharField để tránh validate cứng kiểu URL.
+    image = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+
     class Meta:
         model = Product
         fields =['id', 'name', 'description', 'price', 'image', 'quantity']
+
+    def to_internal_value(self, data):
+        mutable_data = data.copy()
+        raw_price = mutable_data.get("price")
+        # Chấp nhận giá nhập kiểu "100,00" từ frontend.
+        if isinstance(raw_price, str):
+            mutable_data["price"] = raw_price.replace(",", ".").strip()
+        return super().to_internal_value(mutable_data)
 
 #orderitem
 class OrderItemSerializer(serializers.ModelSerializer):
