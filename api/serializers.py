@@ -8,7 +8,11 @@ from rest_framework_simplejwt.tokens import RefreshToken
 class UserProfileSerializer(serializers.ModelSerializer):
     class Meta:
         model = UserProfile
-        fields = ['first_name','last_name','address','phone','email','image','user_id']
+        fields = [
+            'first_name', 'last_name', 'address', 'phone', 'email', 'image', 'user_id',
+            # Fields mới
+            'avatar', 'gender', 'date_of_birth', 'bio',
+        ]
 
 #customer
 class UserSerializer(serializers.ModelSerializer):

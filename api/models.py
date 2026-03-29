@@ -2,18 +2,35 @@ from django.db import models
 from django.contrib.auth.models import User
 from django.core.validators import MinValueValidator
 from django.core.exceptions import ValidationError
-# Create your models here.
+
+
 class UserProfile(models.Model):
-    user = models.OneToOneField(User,on_delete=models.CASCADE,related_name='profile')
-    first_name = models.CharField(max_length=255)
-    last_name = models.CharField(max_length=255)
-    address = models.TextField()
+    GENDER_CHOICES = [
+        ('male', 'Nam'),
+        ('female', 'Nữ'),
+        ('other', 'Khác'),
+    ]
+
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='profile')
+
+    # --- Fields cũ (giữ nguyên để không phá code hiện tại) ---
+    first_name = models.CharField(max_length=255, blank=True, default='')
+    last_name = models.CharField(max_length=255, blank=True, default='')
+    address = models.TextField(blank=True, default='')
     phone = models.CharField(max_length=20, blank=True, null=True)
-    email = models.EmailField()
-    image = models.URLField(null = True)
+    email = models.EmailField(blank=True, default='')
+    image = models.URLField(null=True, blank=True)
+
+    # --- Fields mới (hồ sơ nâng cao) ---
+    avatar = models.ImageField(upload_to='avatars/', blank=True, null=True)
+    gender = models.CharField(max_length=10, choices=GENDER_CHOICES, blank=True, null=True)
+    date_of_birth = models.DateField(blank=True, null=True)
+    bio = models.TextField(blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True, null=True)
+    updated_at = models.DateTimeField(auto_now=True, null=True)
 
     def __str__(self):
-        return f"{self.first_name}{self.lastname}({self.user.username})"
+        return f"{self.first_name} {self.last_name} ({self.user.username})"
 
 
 
